@@ -6,8 +6,9 @@ import ReportsTab from '@/components/ReportsTab';
 import DataEntryTab from '@/components/DataEntryTab';
 import ExpenseTab from '@/components/ExpenseTab';
 import CategoryTab from '@/components/CategoryTab';
+import OutOfStockTab from '@/components/OutOfStockTab';
 import Dashboard from '@/components/Dashboard';
-import { ShoppingBag, FileBarChart, Database, CreditCard, Store, Lock, LogOut, ChevronDown, Tag } from 'lucide-react';
+import { ShoppingBag, FileBarChart, Database, CreditCard, Store, Lock, LogOut, ChevronDown, Tag, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Home() {
@@ -128,6 +129,16 @@ export default function Home() {
             >
               <CreditCard size={18} /> Expenses
             </button>
+            <button
+              onClick={() => { setActiveTab('out-of-stock'); setIsAdminLoggedIn(false); }}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'out-of-stock' 
+                ? 'bg-white text-red-600 shadow-md scale-105' 
+                : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
+              }`}
+            >
+              <AlertTriangle size={18} /> Out of Stock
+            </button>
 
             {/* Admin Section */}
             <div className="relative ml-2">
@@ -241,6 +252,7 @@ export default function Home() {
               {activeTab === 'data-entry' && "Warehouse"}
               {activeTab === 'category' && "Product Categories"}
               {activeTab === 'expense' && "Cash Flow"}
+              {activeTab === 'out-of-stock' && "Restock Required"}
             </h2>
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -265,6 +277,7 @@ export default function Home() {
             {activeTab === 'data-entry' && isAdminLoggedIn && <DataEntryTab />}
             {activeTab === 'category' && isAdminLoggedIn && <CategoryTab />}
             {activeTab === 'expense' && <ExpenseTab />}
+            {activeTab === 'out-of-stock' && <OutOfStockTab />}
           </div>
         </div>
       </div>
