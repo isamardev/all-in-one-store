@@ -38,7 +38,6 @@ Product.init(
     code: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     costPrice: {
       type: DataTypes.FLOAT,
