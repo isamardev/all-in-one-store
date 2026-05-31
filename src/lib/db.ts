@@ -1,12 +1,16 @@
 import { Sequelize, DataTypes, Model } from 'sequelize';
-import path from 'path';
-import sqlite3 from 'sqlite3';
+import pg from 'pg';
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: path.join(process.cwd(), 'database.sqlite'),
-  dialectModule: sqlite3,
-  logging: console.log,
+const sequelize = new Sequelize('postgresql://neondb_owner:npg_wM7k4yolpxOL@ep-holy-hat-ao3titjr-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require', {
+  dialect: 'postgres',
+  dialectModule: pg,
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  },
+  logging: false, // Set to console.log if you want to see SQL queries
 });
 
 export default sequelize;
