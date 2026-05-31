@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, ShoppingCart } from 'lucide-react';
+import { Plus, ShoppingCart, Trash2, CheckCircle, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Product {
@@ -18,6 +18,14 @@ interface Category {
   name: string;
 }
 
+interface CartItem {
+  id: string; // temp unique id for cart
+  productId: number;
+  name: string;
+  code: string;
+  salePrice: number;
+}
+
 export default function SaleTab() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -26,6 +34,7 @@ export default function SaleTab() {
   const [salePrice, setSalePrice] = useState<string>('');
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
   
   // New Product State
   const [newName, setNewName] = useState('');
@@ -38,14 +47,12 @@ export default function SaleTab() {
     fetchCategories();
 
     // Listen for updates from other tabs
-    window.addEventListener('sale-updated', () => {
+    const handleUpdate = () => {
       fetchProducts();
       fetchCategories();
-    });
-    return () => window.removeEventListener('sale-updated', () => {
-      fetchProducts();
-      fetchCategories();
-    });
+    };
+    window.addEventListener('sale-updated', handleUpdate);
+    return () => window.removeEventListener('sale-updated', handleUpdate);
   }, []);
 
   const fetchCategories = async () => {
@@ -67,11 +74,9 @@ export default function SaleTab() {
       if (Array.isArray(data)) {
         setProducts(data);
       } else {
-        console.error('Expected array of products, got:', data);
         setProducts([]);
       }
     } catch (error) {
-      console.error('Failed to fetch products:', error);
       setProducts([]);
     }
   };
@@ -80,52 +85,35 @@ export default function SaleTab() {
     ? products.filter(p => p.category === selectedCategory)
     : products;
 
-  const handleSale = async (e: React.FormEvent) => {
+  const handleAddToCart = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProductId || !salePrice || isProcessing) return;
+    if (!selectedProductId || !salePrice) return;
 
     const product = products.find(p => p.id === parseInt(selectedProductId));
     if (!product) return;
 
-    setIsProcessing(true);
-    const loadingToast = toast.loading('Recording sale...');
+    const newItem: CartItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      productId: product.id,
+      name: product.name,
+      code: product.code,
+      salePrice: parseFloat(salePrice)
+    };
 
-    try {
-      const res = await fetch('/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product.id,
-          salePrice: parseFloat(salePrice),
-          code: product.code
-        }),
-      });
-
-      if (res.ok) {
-        window.dispatchEvent(new Event('sale-updated'));
-        toast.success('Sale recorded successfully!', { id: loadingToast });
-        setSalePrice('');
-        setSelectedProductId('');
-        setSelectedCategory(''); // Reset category as requested
-      } else {
-        const err = await res.json();
-        toast.error('Error: ' + (err.error || 'Failed to record sale'), { id: loadingToast });
-      }
-    } catch (error: any) {
-      toast.error('System Error: ' + error.message, { id: loadingToast });
-    } finally {
-      setIsProcessing(false);
-    }
+    setCart([...cart, newItem]);
+    setSalePrice('');
+    setSelectedProductId('');
+    toast.success('Added to cart!');
   };
 
-  const handleAddNewAndSale = async (e: React.FormEvent) => {
+  const handleAddNewToCart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName || !newCode || !salePrice || isProcessing) return;
 
     setIsProcessing(true);
-    const loadingToast = toast.loading('Adding product and recording sale...');
+    const loadingToast = toast.loading('Adding new product to inventory...');
     try {
-      // 1. Create Product
+      // 1. Create Product first (so it shows in inventory)
       const parsedCode = parseFloat(newCode);
       if (isNaN(parsedCode)) {
         toast.error('Product code must be a number!', { id: loadingToast });
@@ -154,32 +142,70 @@ export default function SaleTab() {
 
       const newProduct = await prodRes.json();
       
-      // 2. Record Sale
-      const saleRes = await fetch('/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: newProduct.id,
-          salePrice: parseFloat(salePrice),
-          code: newCode
-        }),
-      });
+      // 2. Add to Cart
+      const newItem: CartItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        productId: newProduct.id,
+        name: newProduct.name,
+        code: newProduct.code,
+        salePrice: parseFloat(salePrice)
+      };
 
-      if (saleRes.ok) {
+      setCart([...cart, newItem]);
+      
+      // Reset form
+      setNewName('');
+      setNewCode('');
+      setNewCategory('');
+      setNewStock('');
+      setSalePrice('');
+      setIsAddingNew(false);
+      
+      // Refresh inventory
+      window.dispatchEvent(new Event('sale-updated'));
+      toast.success('Product added to inventory and cart!', { id: loadingToast });
+    } catch (error: any) {
+      toast.error('System Error: ' + error.message, { id: loadingToast });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(cart.filter(item => item.id !== id));
+    toast.success('Removed from cart');
+  };
+
+  const confirmAllSales = async () => {
+    if (cart.length === 0 || isProcessing) return;
+
+    setIsProcessing(true);
+    const loadingToast = toast.loading(`Processing ${cart.length} sales...`);
+
+    try {
+      let successCount = 0;
+      for (const item of cart) {
+        const res = await fetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: item.productId,
+            salePrice: item.salePrice,
+            code: item.code
+          }),
+        });
+        if (res.ok) successCount++;
+      }
+
+      if (successCount === cart.length) {
+        toast.success('All sales recorded successfully!', { id: loadingToast });
+        setCart([]);
         window.dispatchEvent(new Event('sale-updated'));
-        toast.success('Product added and Sale recorded!', { id: loadingToast });
-        setNewName('');
-        setNewCode('');
-        setNewCategory('');
-        setNewStock('');
-        setSalePrice('');
-        setIsAddingNew(false);
-        setSelectedCategory(''); // Reset selection
-        setSelectedProductId('');
-        fetchProducts();
       } else {
-        const err = await saleRes.json();
-        toast.error('Error recording sale: ' + (err.error || 'Unknown error'), { id: loadingToast });
+        toast.error(`Recorded ${successCount} of ${cart.length} sales.`, { id: loadingToast });
+        // Optionally filter cart to keep failed ones? For now just clear or keep.
+        setCart([]); 
+        window.dispatchEvent(new Event('sale-updated'));
       }
     } catch (error: any) {
       toast.error('System Error: ' + error.message, { id: loadingToast });
@@ -188,10 +214,12 @@ export default function SaleTab() {
     }
   };
 
+  const totalAmount = cart.reduce((sum, item) => sum + item.salePrice, 0);
+
   return (
-    <div className="w-full">
+    <div className="w-full space-y-8">
+      {/* Sale Form Section */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden">
-        {/* Decorative Background */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-16 -mt-16 blur-3xl opacity-50" />
         
         <div className="flex justify-between items-center mb-8 relative z-10">
@@ -215,16 +243,15 @@ export default function SaleTab() {
         </div>
 
         {!isAddingNew ? (
-          <form onSubmit={handleSale} className="space-y-6 relative z-10">
+          <form onSubmit={handleAddToCart} className="space-y-6 relative z-10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Category Selection */}
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">1. Select Category</label>
                 <select
                   value={selectedCategory}
                   onChange={(e) => {
                     setSelectedCategory(e.target.value);
-                    setSelectedProductId(''); // Reset product when category changes
+                    setSelectedProductId('');
                   }}
                   className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-600 outline-none transition-all text-black font-bold appearance-none shadow-inner"
                 >
@@ -235,7 +262,6 @@ export default function SaleTab() {
                 </select>
               </div>
 
-              {/* Product Selection */}
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">2. Select Product</label>
                 <select
@@ -255,7 +281,6 @@ export default function SaleTab() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-              {/* Sale Price */}
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">3. Enter Sale Price</label>
                 <div className="relative">
@@ -271,20 +296,16 @@ export default function SaleTab() {
                 </div>
               </div>
 
-              {/* Action Button */}
               <button
                 type="submit"
-                disabled={isProcessing}
-                className={`w-full p-4 text-white rounded-2xl transition-all font-black text-lg shadow-xl flex items-center justify-center gap-3 ${
-                  isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
-                }`}
+                className="w-full p-4 bg-blue-600 text-white rounded-2xl transition-all font-black text-lg shadow-xl hover:bg-blue-700 shadow-blue-200 flex items-center justify-center gap-3"
               >
-                {isProcessing ? 'Processing...' : 'Complete Sale'} <ShoppingCart size={20} />
+                Add to Cart <Plus size={20} />
               </button>
             </div>
           </form>
         ) : (
-          <form onSubmit={handleAddNewAndSale} className="space-y-6 relative z-10">
+          <form onSubmit={handleAddNewToCart} className="space-y-6 relative z-10">
             <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 mb-6">
               <h3 className="text-blue-800 font-black text-lg mb-4">Register New Item</h3>
               
@@ -359,11 +380,73 @@ export default function SaleTab() {
                 isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-green-100'
               }`}
             >
-              {isProcessing ? 'Processing...' : 'Save Product & Complete Sale'}
+              {isProcessing ? 'Processing...' : 'Add New to Cart & Inventory'}
             </button>
           </form>
         )}
       </div>
+
+      {/* Cart Section */}
+      {cart.length > 0 && (
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 animate-in fade-in slide-in-from-bottom-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-black text-gray-800 flex items-center gap-2">
+              <ShoppingCart size={24} className="text-blue-600" /> 
+              Shopping Cart 
+              <span className="bg-blue-100 text-blue-600 text-sm px-3 py-1 rounded-full">{cart.length} items</span>
+            </h3>
+            <button 
+              onClick={() => setCart([])}
+              className="text-red-500 text-sm font-bold hover:underline"
+            >
+              Clear Cart
+            </button>
+          </div>
+
+          <div className="space-y-3 mb-8">
+            {cart.map((item) => (
+              <div key={item.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100 group">
+                <div className="flex items-center gap-4">
+                  <div className="bg-white p-2 rounded-xl shadow-sm">
+                    <Package size={20} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="font-black text-gray-800">{item.name}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Code: {item.code}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <p className="font-black text-gray-900 text-lg">Rs. {item.salePrice.toFixed(2)}</p>
+                  <button 
+                    onClick={() => removeFromCart(item.id)}
+                    className="text-gray-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-gray-900 p-6 rounded-3xl text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+            <div>
+              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Total Bill Amount</p>
+              <p className="text-4xl font-black">Rs. {totalAmount.toFixed(2)}</p>
+            </div>
+            <button
+              onClick={confirmAllSales}
+              disabled={isProcessing}
+              className={`w-full md:w-auto px-10 py-5 rounded-2xl font-black text-xl flex items-center justify-center gap-3 transition-all ${
+                isProcessing 
+                ? 'bg-gray-700 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-900/20'
+              }`}
+            >
+              {isProcessing ? 'Processing...' : 'Confirm Sale'} <CheckCircle size={24} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
