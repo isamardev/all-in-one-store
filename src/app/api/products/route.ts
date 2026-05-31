@@ -22,8 +22,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    // Check if product already exists with this code
-    const existingProduct = await Product.findOne({ where: { code } });
+    // Check if product already exists with BOTH this name and code
+    const existingProduct = await Product.findOne({ where: { name, code } });
     if (existingProduct) {
       // Update stock if provided
       if (stock !== undefined) {

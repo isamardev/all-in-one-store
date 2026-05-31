@@ -56,6 +56,12 @@ Product.init(
   {
     sequelize,
     modelName: 'Product',
+    indexes: [
+      {
+        unique: false,
+        fields: ['code']
+      }
+    ]
   }
 );
 
