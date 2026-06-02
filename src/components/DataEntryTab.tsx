@@ -11,6 +11,7 @@ interface Product {
   costPrice: number;
   category: string;
   stock: number;
+  salePrice?: number;
 }
 
 interface Category {
@@ -25,6 +26,7 @@ export default function DataEntryTab() {
   const [code, setCode] = useState('');
   const [category, setCategory] = useState('');
   const [stock, setStock] = useState('');
+  const [salePrice, setSalePrice] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -32,14 +34,12 @@ export default function DataEntryTab() {
     fetchCategories();
 
     // Listen for updates from other tabs
-    window.addEventListener('sale-updated', () => {
+    const handleUpdate = () => {
       fetchProducts();
       fetchCategories();
-    });
-    return () => window.removeEventListener('sale-updated', () => {
-      fetchProducts();
-      fetchCategories();
-    });
+    };
+    window.addEventListener('sale-updated', handleUpdate);
+    return () => window.removeEventListener('sale-updated', handleUpdate);
   }, []);
 
   const handleEdit = (p: Product) => {
@@ -48,6 +48,7 @@ export default function DataEntryTab() {
     setCode(p.code);
     setCategory(p.category);
     setStock(p.stock.toString());
+    setSalePrice(p.salePrice ? p.salePrice.toString() : '');
   };
 
   const cancelEdit = () => {
@@ -56,6 +57,7 @@ export default function DataEntryTab() {
     setCode('');
     setCategory('');
     setStock('');
+    setSalePrice('');
   };
 
   const fetchCategories = async () => {
@@ -103,7 +105,8 @@ export default function DataEntryTab() {
       code, 
       costPrice,
       category: category || 'General',
-      stock: parseInt(stock) || 0
+      stock: parseInt(stock) || 0,
+      salePrice: parseFloat(salePrice) || 0
     });
 
     const res = await fetch(url, {
@@ -119,6 +122,7 @@ export default function DataEntryTab() {
       setCode('');
       setCategory('');
       setStock('');
+      setSalePrice('');
       setEditingProduct(null);
       fetchProducts();
     } else {
@@ -135,51 +139,66 @@ export default function DataEntryTab() {
           {editingProduct ? 'Edit Product' : 'Add Product'}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Product Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
-              required
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Product Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black font-bold"
+                required
+              >
+                <option value="">Select Category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-400 mt-1 italic">Create categories in Admin &rarr; Categories</p>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Category</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black font-bold"
-              required
-            >
-              <option value="">Select Category</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.name}>{cat.name}</option>
-              ))}
-            </select>
-            <p className="text-[10px] text-gray-400 mt-1 italic">Create categories in Admin &rarr; Categories</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Initial Stock</label>
-            <input
-              type="number"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Product Code (Cost Price * 3)</label>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Calculated Cost: {code ? (parseFloat(code) / 3).toFixed(2) : 0}</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Stock</label>
+              <input
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Product Code (Cost*3)</label>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">Cost: {code ? (parseFloat(code) / 3).toFixed(2) : 0}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Sale Price</label>
+              <input
+                type="number"
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 bg-gray-50 p-2 border text-black"
+                placeholder="0.00"
+              />
+            </div>
           </div>
           <div className="flex gap-2">
             <button
@@ -211,6 +230,7 @@ export default function DataEntryTab() {
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Category</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Code</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Cost</th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Sale Price</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Stock</th>
                 <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider border-b">Action</th>
               </tr>
@@ -225,7 +245,8 @@ export default function DataEntryTab() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 font-mono">{p.code}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 font-bold">{p.costPrice.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 font-bold">{(parseFloat(p.code) / 3).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-sm text-green-600 font-bold">{p.salePrice?.toFixed(2) || '0.00'}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className={`font-bold ${p.stock <= 5 ? 'text-red-600' : 'text-green-600'}`}>
                       {p.stock}

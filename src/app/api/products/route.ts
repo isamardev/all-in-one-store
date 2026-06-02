@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     await ensureDbSynced();
     const body = await request.json();
-    const { name, code, costPrice, category, stock } = body;
+    const { name, code, costPrice, category, stock, salePrice } = body;
     
     if (!name || !code || costPrice === undefined) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -28,8 +28,12 @@ export async function POST(request: Request) {
       // Update stock if provided
       if (stock !== undefined) {
         existingProduct.stock += parseInt(stock);
-        await existingProduct.save();
       }
+      // Update sale price if provided
+      if (salePrice !== undefined) {
+        existingProduct.salePrice = parseFloat(salePrice);
+      }
+      await existingProduct.save();
       return NextResponse.json(existingProduct);
     }
 
@@ -38,7 +42,8 @@ export async function POST(request: Request) {
       code, 
       costPrice, 
       category: category || 'General', 
-      stock: stock || 0 
+      stock: stock || 0,
+      salePrice: salePrice || 0
     });
     return NextResponse.json(product);
   } catch (error: any) {
@@ -69,7 +74,7 @@ export async function PUT(request: Request) {
   try {
     await ensureDbSynced();
     const body = await request.json();
-    const { id, name, code, costPrice, category, stock } = body;
+    const { id, name, code, costPrice, category, stock, salePrice } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -80,7 +85,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    await product.update({ name, code, costPrice, category, stock });
+    await product.update({ name, code, costPrice, category, stock, salePrice });
     return NextResponse.json(product);
   } catch (error: any) {
     console.error('API Error:', error);

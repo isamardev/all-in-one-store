@@ -16,27 +16,40 @@ export async function POST(request: Request) {
   try {
     await ensureDbSynced();
     const body = await request.json();
-    const { productId, salePrice, code } = body;
+    const { productId, salePrice, code, quantity, discount } = body;
 
     if (!productId || salePrice === undefined || !code) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
+    const qty = parseInt(quantity) || 1;
+    const disc = parseFloat(discount) || 0;
+
     // Calculate cost price from code: cost = code / 3
-    const costPrice = parseFloat(code) / 3;
-    const profit = salePrice - costPrice;
+    const unitCostPrice = parseFloat(code) / 3;
+    const totalCostPrice = unitCostPrice * qty;
+    const totalSalePrice = (parseFloat(salePrice) * qty) - disc;
+    const profit = totalSalePrice - totalCostPrice;
 
     // Decrement stock
     const product = await Product.findByPk(productId);
-    if (product) {
-      product.stock = Math.max(0, product.stock - 1);
-      await product.save();
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
+
+    if (product.stock < qty) {
+      return NextResponse.json({ error: `Insufficient stock for ${product.name}. Available: ${product.stock}` }, { status: 400 });
+    }
+
+    product.stock = Math.max(0, product.stock - qty);
+    await product.save();
 
     const sale = await Sale.create({
       productId,
-      salePrice,
-      costPrice,
+      quantity: qty,
+      salePrice: totalSalePrice,
+      costPrice: totalCostPrice,
+      discount: disc,
       profit,
       date: new Date(),
     });

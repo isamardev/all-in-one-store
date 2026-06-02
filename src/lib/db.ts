@@ -22,6 +22,7 @@ export class Product extends Model {
   declare costPrice: number;
   declare category: string;
   declare stock: number;
+  declare salePrice: number;
 }
 
 Product.init(
@@ -51,6 +52,10 @@ Product.init(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    salePrice: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
+    },
   },
   {
     sequelize,
@@ -67,8 +72,10 @@ Product.init(
 export class Sale extends Model {
   declare id: number;
   declare productId: number;
+  declare quantity: number;
   declare salePrice: number;
   declare costPrice: number;
+  declare discount: number;
   declare profit: number;
   declare date: Date;
 }
@@ -84,6 +91,10 @@ Sale.init(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    quantity: {
+      type: DataTypes.INTEGER,
+      defaultValue: 1,
+    },
     salePrice: {
       type: DataTypes.FLOAT,
       allowNull: false,
@@ -91,6 +102,10 @@ Sale.init(
     costPrice: {
       type: DataTypes.FLOAT,
       allowNull: false,
+    },
+    discount: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
     },
     profit: {
       type: DataTypes.FLOAT,
@@ -165,8 +180,8 @@ Category.init(
 );
 
 // Define associations
-Sale.belongsTo(Product, { foreignKey: 'productId' });
-Product.hasMany(Sale, { foreignKey: 'productId' });
+Sale.belongsTo(Product, { foreignKey: 'productId', onDelete: 'CASCADE' });
+Product.hasMany(Sale, { foreignKey: 'productId', onDelete: 'CASCADE' });
 
 // Sync database only once
 let isSynced = false;

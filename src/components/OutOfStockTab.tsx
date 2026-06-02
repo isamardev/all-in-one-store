@@ -9,6 +9,7 @@ interface Product {
   costPrice: number;
   category: string;
   stock: number;
+  salePrice?: number;
 }
 
 export default function OutOfStockTab() {

@@ -11,6 +11,7 @@ interface Product {
   costPrice: number;
   category: string;
   stock: number;
+  salePrice?: number;
 }
 
 interface Category {
@@ -24,6 +25,8 @@ interface CartItem {
   name: string;
   code: string;
   salePrice: number;
+  quantity: number;
+  discount: number;
 }
 
 export default function SaleTab() {
@@ -32,6 +35,8 @@ export default function SaleTab() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [salePrice, setSalePrice] = useState<string>('');
+  const [quantity, setQuantity] = useState<string>('1');
+  const [discount, setDiscount] = useState<string>('0');
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -41,6 +46,7 @@ export default function SaleTab() {
   const [newCode, setNewCode] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newStock, setNewStock] = useState('');
+  const [newSalePrice, setNewSalePrice] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -54,6 +60,17 @@ export default function SaleTab() {
     window.addEventListener('sale-updated', handleUpdate);
     return () => window.removeEventListener('sale-updated', handleUpdate);
   }, []);
+
+  useEffect(() => {
+    if (selectedProductId) {
+      const product = products.find(p => p.id === parseInt(selectedProductId));
+      if (product) {
+        setSalePrice(product.salePrice?.toString() || '');
+      }
+    } else {
+      setSalePrice('');
+    }
+  }, [selectedProductId, products]);
 
   const fetchCategories = async () => {
     try {
@@ -92,18 +109,54 @@ export default function SaleTab() {
     const product = products.find(p => p.id === parseInt(selectedProductId));
     if (!product) return;
 
-    const newItem: CartItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      productId: product.id,
-      name: product.name,
-      code: product.code,
-      salePrice: parseFloat(salePrice)
-    };
+    const qty = parseInt(quantity) || 1;
+    const disc = parseFloat(discount) || 0;
 
-    setCart([...cart, newItem]);
+    if (product.stock < qty) {
+      toast.error(`Only ${product.stock} items left in stock!`);
+      return;
+    }
+
+    // Check if item already exists in cart with SAME product ID and SAME unit price
+    const existingItemIndex = cart.findIndex(item => item.productId === product.id && item.salePrice === parseFloat(salePrice));
+
+    if (existingItemIndex > -1) {
+      // Merge with existing item
+      const updatedCart = [...cart];
+      const existingItem = updatedCart[existingItemIndex];
+      
+      // Check total stock if merged
+      if (product.stock < existingItem.quantity + qty) {
+        toast.error(`Cannot add more. Total in cart would exceed stock (${product.stock})`);
+        return;
+      }
+
+      updatedCart[existingItemIndex] = {
+        ...existingItem,
+        quantity: existingItem.quantity + qty,
+        discount: existingItem.discount + disc
+      };
+      setCart(updatedCart);
+      toast.success('Cart updated (merged)!');
+    } else {
+      // Add as new item
+      const newItem: CartItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        productId: product.id,
+        name: product.name,
+        code: product.code,
+        salePrice: parseFloat(salePrice),
+        quantity: qty,
+        discount: disc
+      };
+      setCart([...cart, newItem]);
+      toast.success('Added to cart!');
+    }
+
     setSalePrice('');
+    setQuantity('1');
+    setDiscount('0');
     setSelectedProductId('');
-    toast.success('Added to cart!');
   };
 
   const handleAddNewToCart = async (e: React.FormEvent) => {
@@ -129,7 +182,8 @@ export default function SaleTab() {
           code: newCode, 
           costPrice,
           category: newCategory || 'General',
-          stock: (parseInt(newStock) || 0)
+          stock: (parseInt(newStock) || 0),
+          salePrice: parseFloat(newSalePrice) || 0
         }),
       });
 
@@ -143,12 +197,17 @@ export default function SaleTab() {
       const newProduct = await prodRes.json();
       
       // 2. Add to Cart
+      const qty = parseInt(quantity) || 1;
+      const disc = parseFloat(discount) || 0;
+
       const newItem: CartItem = {
         id: Math.random().toString(36).substr(2, 9),
         productId: newProduct.id,
         name: newProduct.name,
         code: newProduct.code,
-        salePrice: parseFloat(salePrice)
+        salePrice: parseFloat(salePrice),
+        quantity: qty,
+        discount: disc
       };
 
       setCart([...cart, newItem]);
@@ -158,7 +217,10 @@ export default function SaleTab() {
       setNewCode('');
       setNewCategory('');
       setNewStock('');
+      setNewSalePrice('');
       setSalePrice('');
+      setQuantity('1');
+      setDiscount('0');
       setIsAddingNew(false);
       
       // Refresh inventory
@@ -191,7 +253,9 @@ export default function SaleTab() {
           body: JSON.stringify({
             productId: item.productId,
             salePrice: item.salePrice,
-            code: item.code
+            code: item.code,
+            quantity: item.quantity,
+            discount: item.discount
           }),
         });
         if (res.ok) successCount++;
@@ -203,7 +267,6 @@ export default function SaleTab() {
         window.dispatchEvent(new Event('sale-updated'));
       } else {
         toast.error(`Recorded ${successCount} of ${cart.length} sales.`, { id: loadingToast });
-        // Optionally filter cart to keep failed ones? For now just clear or keep.
         setCart([]); 
         window.dispatchEvent(new Event('sale-updated'));
       }
@@ -214,7 +277,7 @@ export default function SaleTab() {
     }
   };
 
-  const totalAmount = cart.reduce((sum, item) => sum + item.salePrice, 0);
+  const totalAmount = cart.reduce((sum, item) => sum + (item.salePrice * item.quantity) - item.discount, 0);
 
   return (
     <div className="w-full space-y-8">
@@ -280,9 +343,9 @@ export default function SaleTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
               <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">3. Enter Sale Price</label>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">3. Sale Price (Unit)</label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Rs.</div>
                   <input
@@ -296,13 +359,39 @@ export default function SaleTab() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full p-4 bg-blue-600 text-white rounded-2xl transition-all font-black text-lg shadow-xl hover:bg-blue-700 shadow-blue-200 flex items-center justify-center gap-3"
-              >
-                Add to Cart <Plus size={20} />
-              </button>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">4. Quantity</label>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  min="1"
+                  className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-600 outline-none transition-all text-black font-black text-xl shadow-inner"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">5. Discount (Optional)</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Rs.</div>
+                  <input
+                    type="number"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    placeholder="0"
+                    className="w-full p-4 pl-12 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-600 outline-none transition-all text-black font-black text-xl shadow-inner"
+                  />
+                </div>
+              </div>
             </div>
+
+            <button
+              type="submit"
+              className="w-full p-4 bg-blue-600 text-white rounded-2xl transition-all font-black text-lg shadow-xl hover:bg-blue-700 shadow-blue-200 flex items-center justify-center gap-3"
+            >
+              Add to Cart <Plus size={20} />
+            </button>
           </form>
         ) : (
           <form onSubmit={handleAddNewToCart} className="space-y-6 relative z-10">
@@ -358,19 +447,57 @@ export default function SaleTab() {
                     disabled={isProcessing}
                   />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-tighter ml-1">Default Sale Price</label>
+                  <input
+                    type="number"
+                    value={newSalePrice}
+                    onChange={(e) => setNewSalePrice(e.target.value)}
+                    className="w-full p-3 bg-white rounded-xl border border-blue-200 outline-none focus:ring-2 focus:ring-blue-400 text-black font-bold"
+                    placeholder="0.00"
+                    disabled={isProcessing}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Sale Price for this item</label>
-              <input
-                type="number"
-                value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-green-600 outline-none transition-all text-black font-black text-xl shadow-inner"
-                required
-                disabled={isProcessing}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Sale Price (Unit)</label>
+                <input
+                  type="number"
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value)}
+                  className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-green-600 outline-none transition-all text-black font-black text-xl shadow-inner"
+                  required
+                  disabled={isProcessing}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Quantity</label>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  min="1"
+                  className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-green-600 outline-none transition-all text-black font-black text-xl shadow-inner"
+                  required
+                  disabled={isProcessing}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Discount (Optional)</label>
+                <input
+                  type="number"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                  placeholder="0"
+                  className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-green-600 outline-none transition-all text-black font-black text-xl shadow-inner"
+                  disabled={isProcessing}
+                />
+              </div>
             </div>
 
             <button

@@ -169,7 +169,9 @@ export default function ReportsTab() {
                   <tr className="text-left text-xs font-bold text-black uppercase border-b border-gray-200">
                     <th className="py-2">Date</th>
                     <th className="py-2">Item</th>
+                    <th className="py-2">Qty</th>
                     <th className="py-2">Price</th>
+                    <th className="py-2">Disc.</th>
                     <th className="py-2">Profit</th>
                     <th className="py-2"></th>
                   </tr>
@@ -179,6 +181,7 @@ export default function ReportsTab() {
                     <tr key={i} className="text-sm text-black">
                       <td className="py-2 text-gray-900">{format(new Date(s.date), 'dd MMM HH:mm')}</td>
                       <td className="py-2 font-black text-black">{s.Product?.name || 'N/A'}</td>
+                      <td className="py-2 font-bold text-blue-600">x{s.quantity || 1}</td>
                       <td className="py-2 font-bold text-black">
                         {editingSaleId === s.id ? (
                           <input
@@ -192,9 +195,12 @@ export default function ReportsTab() {
                           s.salePrice.toFixed(2)
                         )}
                       </td>
+                      <td className="py-2 text-orange-600 font-medium">
+                        {s.discount > 0 ? `-${s.discount.toFixed(2)}` : '-'}
+                      </td>
                       <td className="py-2 text-green-700 font-bold">
                         {editingSaleId === s.id ? (
-                          <span className="opacity-50">+{ (parseFloat(editSalePrice) - s.costPrice || s.profit).toFixed(2) }</span>
+                          <span className="opacity-50">+{ (parseFloat(editSalePrice) - (s.costPrice / (s.quantity || 1)) * (s.quantity || 1) ).toFixed(2) }</span>
                         ) : (
                           `+${s.profit.toFixed(2)}`
                         )}
