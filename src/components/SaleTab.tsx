@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, ShoppingCart, Trash2, CheckCircle, Package } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, ShoppingCart, Trash2, CheckCircle, Package, Search, ChevronDown, Store } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Product {
@@ -20,7 +20,7 @@ interface Category {
 }
 
 interface CartItem {
-  id: string; // temp unique id for cart
+  id: string;
   productId: number;
   name: string;
   code: string;
@@ -29,11 +29,13 @@ interface CartItem {
   discount: number;
 }
 
-export default function SaleTab() {
+export default function SaleTab({ toggleNavbar }: { toggleNavbar: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState<string>('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const [salePrice, setSalePrice] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('1');
   const [discount, setDiscount] = useState<string>('0');
@@ -41,7 +43,8 @@ export default function SaleTab() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   
-  // New Product State
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
   const [newName, setNewName] = useState('');
   const [newCode, setNewCode] = useState('');
   const [newCategory, setNewCategory] = useState('');
@@ -52,25 +55,32 @@ export default function SaleTab() {
     fetchProducts();
     fetchCategories();
 
-    // Listen for updates from other tabs
     const handleUpdate = () => {
       fetchProducts();
       fetchCategories();
     };
     window.addEventListener('sale-updated', handleUpdate);
-    return () => window.removeEventListener('sale-updated', handleUpdate);
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      window.removeEventListener('sale-updated', handleUpdate);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
-    if (selectedProductId) {
-      const product = products.find(p => p.id === parseInt(selectedProductId));
-      if (product) {
-        setSalePrice(product.salePrice?.toString() || '');
-      }
+    if (selectedProduct) {
+      setSalePrice(selectedProduct.salePrice?.toString() || '');
     } else {
       setSalePrice('');
     }
-  }, [selectedProductId, products]);
+  }, [selectedProduct]);
 
   const fetchCategories = async () => {
     try {
@@ -98,36 +108,42 @@ export default function SaleTab() {
     }
   };
 
-  const filteredProducts = selectedCategory 
-    ? products.filter(p => p.category === selectedCategory)
-    : products;
+  const filteredProducts = [...products]
+    .filter(p => {
+      const matchesCategory = !selectedCategory || p.category === selectedCategory;
+      const matchesSearch = !productSearchQuery || p.name.toLowerCase().includes(productSearchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleAddToCart = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProductId || !salePrice) return;
+    if (!selectedProduct) {
+      toast.error('Please select a product');
+      return;
+    }
+    if (!salePrice) {
+      toast.error('Please enter sale price');
+      return;
+    }
 
-    const product = products.find(p => p.id === parseInt(selectedProductId));
-    if (!product) return;
-
+    const product = selectedProduct;
     const qty = parseInt(quantity) || 1;
     const disc = parseFloat(discount) || 0;
 
     if (product.stock < qty) {
-      toast.error(`Only ${product.stock} items left in stock!`);
+      toast.error('Only ' + product.stock + ' items left in stock!');
       return;
     }
 
-    // Check if item already exists in cart with SAME product ID and SAME unit price
     const existingItemIndex = cart.findIndex(item => item.productId === product.id && item.salePrice === parseFloat(salePrice));
 
     if (existingItemIndex > -1) {
-      // Merge with existing item
       const updatedCart = [...cart];
       const existingItem = updatedCart[existingItemIndex];
       
-      // Check total stock if merged
       if (product.stock < existingItem.quantity + qty) {
-        toast.error(`Cannot add more. Total in cart would exceed stock (${product.stock})`);
+        toast.error('Cannot add more. Total in cart would exceed stock (' + product.stock + ')');
         return;
       }
 
@@ -139,7 +155,6 @@ export default function SaleTab() {
       setCart(updatedCart);
       toast.success('Cart updated (merged)!');
     } else {
-      // Add as new item
       const newItem: CartItem = {
         id: Math.random().toString(36).substr(2, 9),
         productId: product.id,
@@ -156,7 +171,8 @@ export default function SaleTab() {
     setSalePrice('');
     setQuantity('1');
     setDiscount('0');
-    setSelectedProductId('');
+    setSelectedProduct(null);
+    setProductSearchQuery('');
   };
 
   const handleAddNewToCart = async (e: React.FormEvent) => {
@@ -166,7 +182,6 @@ export default function SaleTab() {
     setIsProcessing(true);
     const loadingToast = toast.loading('Adding new product to inventory...');
     try {
-      // 1. Create Product first (so it shows in inventory)
       const parsedCode = parseFloat(newCode);
       if (isNaN(parsedCode)) {
         toast.error('Product code must be a number!', { id: loadingToast });
@@ -196,7 +211,6 @@ export default function SaleTab() {
 
       const newProduct = await prodRes.json();
       
-      // 2. Add to Cart
       const qty = parseInt(quantity) || 1;
       const disc = parseFloat(discount) || 0;
 
@@ -212,7 +226,6 @@ export default function SaleTab() {
 
       setCart([...cart, newItem]);
       
-      // Reset form
       setNewName('');
       setNewCode('');
       setNewCategory('');
@@ -223,7 +236,6 @@ export default function SaleTab() {
       setDiscount('0');
       setIsAddingNew(false);
       
-      // Refresh inventory
       window.dispatchEvent(new Event('sale-updated'));
       toast.success('Product added to inventory and cart!', { id: loadingToast });
     } catch (error: any) {
@@ -242,7 +254,7 @@ export default function SaleTab() {
     if (cart.length === 0 || isProcessing) return;
 
     setIsProcessing(true);
-    const loadingToast = toast.loading(`Processing ${cart.length} sales...`);
+    const loadingToast = toast.loading('Processing ' + cart.length + ' sales...');
 
     try {
       let successCount = 0;
@@ -266,7 +278,7 @@ export default function SaleTab() {
         setCart([]);
         window.dispatchEvent(new Event('sale-updated'));
       } else {
-        toast.error(`Recorded ${successCount} of ${cart.length} sales.`, { id: loadingToast });
+        toast.error('Recorded ' + successCount + ' of ' + cart.length + ' sales.', { id: loadingToast });
         setCart([]); 
         window.dispatchEvent(new Event('sale-updated'));
       }
@@ -280,9 +292,8 @@ export default function SaleTab() {
   const totalAmount = cart.reduce((sum, item) => sum + (item.salePrice * item.quantity) - item.discount, 0);
 
   return (
-    <div className="w-full space-y-8">
-      {/* Sale Form Section */}
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden">
+    <div className="w-full space-y-8 min-h-[100vh] flex flex-col">
+      <div className="bg-white p-8 rounded-[2rem] shadow-xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden flex-1 flex flex-col">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-16 -mt-16 blur-3xl opacity-50" />
         
         <div className="flex justify-between items-center mb-8 relative z-10">
@@ -291,6 +302,12 @@ export default function SaleTab() {
               <ShoppingCart size={24} />
             </div>
             New Sale
+            <button
+              onClick={toggleNavbar}
+              className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl transition-colors"
+            >
+              <Store size={24} className="text-gray-700" />
+            </button>
           </h2>
           <button
             type="button"
@@ -306,7 +323,7 @@ export default function SaleTab() {
         </div>
 
         {!isAddingNew ? (
-          <form onSubmit={handleAddToCart} className="space-y-6 relative z-10">
+          <form onSubmit={handleAddToCart} className="space-y-6 relative z-10 flex-1 flex flex-col justify-center">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">1. Select Category</label>
@@ -314,7 +331,7 @@ export default function SaleTab() {
                   value={selectedCategory}
                   onChange={(e) => {
                     setSelectedCategory(e.target.value);
-                    setSelectedProductId('');
+                    setSelectedProduct(null);
                   }}
                   className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-600 outline-none transition-all text-black font-bold appearance-none shadow-inner"
                 >
@@ -325,21 +342,57 @@ export default function SaleTab() {
                 </select>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">2. Select Product</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-600 outline-none transition-all text-black font-bold appearance-none shadow-inner"
-                  required
-                >
-                  <option value="">Select a product</option>
-                  {filteredProducts.map((p) => (
-                    <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                      {p.name} {p.stock <= 0 ? '(Out of Stock)' : `(Stock: ${p.stock})`} - {p.code}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-2 relative" ref={dropdownRef}>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">2. Search & Select Product (A-Z)</label>
+                <div className="relative">
+                  <div 
+                    onClick={() => setIsProductDropdownOpen(!isProductDropdownOpen)}
+                    className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-600 outline-none transition-all text-black font-bold shadow-inner cursor-pointer flex items-center justify-between"
+                  >
+                    {selectedProduct ? (
+                      <span className="truncate">{selectedProduct.name} {selectedProduct.stock <= 0 ? '(Out of Stock)' : '(Stock: ' + selectedProduct.stock + ')'} - {selectedProduct.code}</span>
+                    ) : (
+                      <span className="text-gray-400">Select a product</span>
+                    )}
+                    <ChevronDown size={20} className="text-gray-400 flex-shrink-0 ml-2" />
+                  </div>
+
+                  {isProductDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+                      <div className="p-2 border-b border-gray-100">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                          <input
+                            type="text"
+                            placeholder="Search product by name..."
+                            value={productSearchQuery}
+                            onChange={(e) => setProductSearchQuery(e.target.value)}
+                            className="w-full p-3 pl-10 bg-gray-50 rounded-xl border border-gray-200 outline-none transition-all text-black font-bold"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {filteredProducts.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setSelectedProduct(p);
+                              setIsProductDropdownOpen(false);
+                              setProductSearchQuery('');
+                            }}
+                            className={`p-2 cursor-pointer transition-colors ${p.stock <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-50'}`}
+                            style={{ pointerEvents: p.stock <= 0 ? 'none' : 'auto' }}
+                          >
+                            <p className="font-bold text-gray-800 text-sm truncate">{p.name} {p.stock <= 0 ? '(Out of Stock)' : '(Stock: ' + p.stock + ')'} - {p.code}</p>
+                          </div>
+                        ))}
+                        {filteredProducts.length === 0 && (
+                          <div className="p-4 text-center text-gray-500">No products found</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -394,7 +447,7 @@ export default function SaleTab() {
             </button>
           </form>
         ) : (
-          <form onSubmit={handleAddNewToCart} className="space-y-6 relative z-10">
+          <form onSubmit={handleAddNewToCart} className="space-y-6 relative z-10 flex-1 flex flex-col justify-center">
             <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 mb-6">
               <h3 className="text-blue-800 font-black text-lg mb-4">Register New Item</h3>
               
@@ -513,7 +566,6 @@ export default function SaleTab() {
         )}
       </div>
 
-      {/* Cart Section */}
       {cart.length > 0 && (
         <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 animate-in fade-in slide-in-from-bottom-6">
           <div className="flex items-center justify-between mb-6">
@@ -538,12 +590,12 @@ export default function SaleTab() {
                     <Package size={20} className="text-gray-400" />
                   </div>
                   <div>
-                    <p className="font-black text-gray-800">{item.name}</p>
+                    <p className="font-black text-gray-800">{item.name} <span className="text-blue-600">x{item.quantity}</span></p>
                     <p className="text-[10px] text-gray-400 font-bold uppercase">Code: {item.code}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
-                  <p className="font-black text-gray-900 text-lg">Rs. {item.salePrice.toFixed(2)}</p>
+                  <p className="font-black text-gray-900 text-lg">Rs. {item.salePrice.toFixed(2)}{item.discount > 0 ? <span className="text-red-500 text-sm ml-2">(-{item.discount.toFixed(2)})</span> : ''}</p>
                   <button 
                     onClick={() => removeFromCart(item.id)}
                     className="text-gray-300 hover:text-red-500 transition-colors"

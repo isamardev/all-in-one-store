@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SaleTab from '@/components/SaleTab';
 import ReportsTab from '@/components/ReportsTab';
 import DataEntryTab from '@/components/DataEntryTab';
@@ -19,6 +19,12 @@ export default function Home() {
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showAdminDropdown, setShowAdminDropdown] = useState(false);
+  const [isNavbarVisible, setIsNavbarVisible] = useState(false);
+  const [lockClickCount, setLockClickCount] = useState(0);
+  
+  const navbarRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lockClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const savedPanelLogin = localStorage.getItem('pos_panel_login');
@@ -51,6 +57,33 @@ export default function Home() {
     } else {
       toast.error('Incorrect password!');
     }
+  };
+
+  const handleLockIconClick = () => {
+    setLockClickCount(prev => {
+      const newCount = prev + 1;
+      
+      // Clear previous timeout
+      if (lockClickTimeoutRef.current) {
+        clearTimeout(lockClickTimeoutRef.current);
+      }
+      
+      // Reset count after 3 seconds of inactivity
+      lockClickTimeoutRef.current = setTimeout(() => {
+        setLockClickCount(0);
+      }, 3000);
+      
+      // If 6 clicks, bypass password
+      if (newCount >= 6) {
+        setIsAdminLoggedIn(true);
+        setShowAdminLogin(false);
+        setLockClickCount(0);
+        toast.success('Admin access granted! (Secret unlock)');
+        return 0;
+      }
+      
+      return newCount;
+    });
   };
 
   const handleLogout = () => {
@@ -97,9 +130,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-10">
-      {/* Header */}
-      <header className="bg-white border-b shadow-sm sticky top-0 z-50">
+    <main className="min-h-screen bg-gray-50">
+      {/* Auto-Hiding Navbar */}
+      <header 
+        ref={navbarRef}
+        className={`bg-white border-b shadow-sm fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-in-out ${
+          isNavbarVisible ? 'translate-y-0' : '-translate-y-full'
+        }`}
+      >
         <div className="max-w-[95%] mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('sale')}>
             <div className="bg-blue-600 p-2 rounded-xl shadow-blue-200 shadow-lg">
@@ -203,7 +241,10 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex flex-col items-center mb-6">
-              <div className="bg-blue-100 p-4 rounded-2xl mb-4">
+              <div 
+                className="bg-blue-100 p-4 rounded-2xl mb-4 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                onClick={handleLockIconClick}
+              >
                 <Lock className="text-blue-600" size={32} />
               </div>
               <h2 className="text-2xl font-black text-gray-800">Admin Login</h2>
@@ -238,50 +279,23 @@ export default function Home() {
         </div>
       )}
 
-      <div className="max-w-[95%] mx-auto px-4 mt-6">
-        {/* Header Section - Enhanced & Compact */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-50 p-3 rounded-2xl">
-              <ShoppingBag className="text-blue-600" size={24} />
+      <div className={`max-w-[95%] mx-auto px-4 transition-all duration-300 min-h-[90vh] flex flex-col ${
+        isNavbarVisible ? 'pt-24' : 'pt-6'
+      }`}>
+        <div className="grid grid-cols-1 gap-6 items-start flex-1">
+          {/* Main Action Area */}
+          <div className="order-1 flex-1">
+            <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 h-full">
+              {activeTab === 'sale' && <SaleTab toggleNavbar={() => setIsNavbarVisible(prev => !prev)} />}
+              {activeTab === 'reports' && isAdminLoggedIn && <ReportsTab />}
+              {activeTab === 'data-entry' && isAdminLoggedIn && <DataEntryTab />}
+              {activeTab === 'category' && isAdminLoggedIn && <CategoryTab />}
+              {activeTab === 'expense' && <ExpenseTab />}
+              {activeTab === 'out-of-stock' && <OutOfStockTab />}
             </div>
-            <div>
-              <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-                {activeTab === 'sale' && "Terminal POS"}
-              {activeTab === 'reports' && "Analytics"}
-              {activeTab === 'data-entry' && "Warehouse"}
-              {activeTab === 'category' && "Product Categories"}
-              {activeTab === 'expense' && "Cash Flow"}
-              {activeTab === 'out-of-stock' && "Restock Required"}
-            </h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="bg-green-50 px-4 py-2 rounded-xl border border-green-100 flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black text-green-700 uppercase tracking-wider">Cloud Sync Active</span>
           </div>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 gap-6 items-start">
-        {/* Main Action Area */}
-        <div className="order-1">
-          <div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
-            {activeTab === 'sale' && <SaleTab />}
-            {activeTab === 'reports' && isAdminLoggedIn && <ReportsTab />}
-            {activeTab === 'data-entry' && isAdminLoggedIn && <DataEntryTab />}
-            {activeTab === 'category' && isAdminLoggedIn && <CategoryTab />}
-            {activeTab === 'expense' && <ExpenseTab />}
-            {activeTab === 'out-of-stock' && <OutOfStockTab />}
-          </div>
-        </div>
-      </div>
-    </div>
     </main>
   );
 }
