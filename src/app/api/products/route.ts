@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { Product, ensureDbSynced } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureDbSynced();
-    const products = await Product.findAll();
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+    const where = category ? { category } : {};
+    const products = await Product.findAll({ where, order: [['name', 'ASC']] });
     return NextResponse.json(products);
   } catch (error: any) {
     console.error('API Error:', error);
@@ -16,7 +19,7 @@ export async function POST(request: Request) {
   try {
     await ensureDbSynced();
     const body = await request.json();
-    const { name, code, costPrice, category, stock, salePrice } = body;
+    const { name, code, costPrice, category, stock, salePrice, image } = body;
     
     if (!name || !code || costPrice === undefined) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -43,7 +46,8 @@ export async function POST(request: Request) {
       costPrice, 
       category: category || 'General', 
       stock: stock || 0,
-      salePrice: salePrice || 0
+      salePrice: salePrice || 0,
+      image: image || null,
     });
     return NextResponse.json(product);
   } catch (error: any) {
@@ -74,7 +78,7 @@ export async function PUT(request: Request) {
   try {
     await ensureDbSynced();
     const body = await request.json();
-    const { id, name, code, costPrice, category, stock, salePrice } = body;
+    const { id, name, code, costPrice, category, stock, salePrice, image } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -85,7 +89,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    await product.update({ name, code, costPrice, category, stock, salePrice });
+    await product.update({ name, code, costPrice, category, stock, salePrice, image: image ?? product.image });
     return NextResponse.json(product);
   } catch (error: any) {
     console.error('API Error:', error);

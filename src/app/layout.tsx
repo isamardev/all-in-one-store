@@ -1,25 +1,21 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import { CartProvider } from "@/lib/cart";
 
 export const metadata: Metadata = {
-  title: "POS Pro System",
-  description: "Modern Point of Sale System",
+  title: "All In One Store",
+  description: "Online Shopping Store",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className="h-full antialiased"
-    >
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col font-sans">
-        <Toaster position="top-right" />
-        {children}
+        <CartProvider>
+          <Toaster position="top-right" />
+          {children}
+        </CartProvider>
       </body>
     </html>
   );

@@ -12,6 +12,7 @@ interface Product {
   category: string;
   stock: number;
   salePrice?: number;
+  image?: string | null;
 }
 
 interface Category {
@@ -31,14 +32,26 @@ export default function DataEntryTab() {
   const [category, setCategory] = useState('');
   const [stock, setStock] = useState('');
   const [salePrice, setSalePrice] = useState('');
-  
-  // Edit modal state
+  const [image, setImage] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editName, setEditName] = useState('');
   const [editCode, setEditCode] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editStock, setEditStock] = useState('');
   const [editSalePrice, setEditSalePrice] = useState('');
+  const [editImage, setEditImage] = useState<string | null>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500000) { toast.error('Image max 500KB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (isEdit) setEditImage(reader.result as string);
+      else setImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -59,6 +72,7 @@ export default function DataEntryTab() {
     setEditCategory(p.category);
     setEditStock(p.stock.toString());
     setEditSalePrice(p.salePrice ? p.salePrice.toString() : '');
+    setEditImage(p.image || null);
   };
 
   const closeEditModal = () => {
@@ -116,7 +130,8 @@ export default function DataEntryTab() {
         costPrice,
         category: category || 'General',
         stock: parseInt(stock) || 0,
-        salePrice: parseFloat(salePrice) || 0
+        salePrice: parseFloat(salePrice) || 0,
+        image,
       }),
     });
 
@@ -128,6 +143,7 @@ export default function DataEntryTab() {
       setCategory('');
       setStock('');
       setSalePrice('');
+      setImage(null);
       fetchProducts();
     } else {
       const err = await res.json();
@@ -156,7 +172,8 @@ export default function DataEntryTab() {
         costPrice,
         category: editCategory || 'General',
         stock: parseInt(editStock) || 0,
-        salePrice: parseFloat(editSalePrice) || 0
+        salePrice: parseFloat(editSalePrice) || 0,
+        image: editImage,
       }),
     });
 
@@ -247,6 +264,11 @@ export default function DataEntryTab() {
                 placeholder="0.00"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Product Image</label>
+            <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e)} className="mt-1 block w-full text-sm text-gray-500" />
+            {image && <img src={image} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />}
           </div>
           <button
             type="submit"
@@ -429,6 +451,11 @@ export default function DataEntryTab() {
                     placeholder="0.00"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Product Image</label>
+                <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, true)} className="mt-1 block w-full text-sm text-gray-500" />
+                {editImage && <img src={editImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />}
               </div>
               
               <div className="flex gap-3 pt-2">

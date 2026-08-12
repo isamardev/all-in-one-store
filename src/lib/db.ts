@@ -23,6 +23,7 @@ export class Product extends Model {
   declare category: string;
   declare stock: number;
   declare salePrice: number;
+  declare image: string | null;
 }
 
 Product.init(
@@ -55,6 +56,10 @@ Product.init(
     salePrice: {
       type: DataTypes.FLOAT,
       defaultValue: 0,
+    },
+    image: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
   },
   {
@@ -158,6 +163,7 @@ Expense.init(
 export class Category extends Model {
   declare id: number;
   declare name: string;
+  declare slug: string;
 }
 
 Category.init(
@@ -172,6 +178,10 @@ Category.init(
       allowNull: false,
       unique: true,
     },
+    slug: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -179,9 +189,58 @@ Category.init(
   }
 );
 
+export class Order extends Model {
+  declare id: number;
+  declare customerName: string;
+  declare phone: string;
+  declare address: string;
+  declare total: number;
+  declare status: string;
+  declare date: Date;
+}
+
+Order.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    customerName: { type: DataTypes.STRING, allowNull: false },
+    phone: { type: DataTypes.STRING, allowNull: false },
+    address: { type: DataTypes.TEXT, allowNull: false },
+    total: { type: DataTypes.FLOAT, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: 'pending' },
+    date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  },
+  { sequelize, modelName: 'Order' }
+);
+
+export class OrderItem extends Model {
+  declare id: number;
+  declare orderId: number;
+  declare productId: number;
+  declare quantity: number;
+  declare price: number;
+}
+
+OrderItem.init(
+  {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    orderId: { type: DataTypes.INTEGER, allowNull: false },
+    productId: { type: DataTypes.INTEGER, allowNull: false },
+    quantity: { type: DataTypes.INTEGER, defaultValue: 1 },
+    price: { type: DataTypes.FLOAT, allowNull: false },
+  },
+  { sequelize, modelName: 'OrderItem' }
+);
+
+export function toSlug(name: string) {
+  return name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
 // Define associations
 Sale.belongsTo(Product, { foreignKey: 'productId', onDelete: 'CASCADE' });
 Product.hasMany(Sale, { foreignKey: 'productId', onDelete: 'CASCADE' });
+Order.hasMany(OrderItem, { foreignKey: 'orderId', onDelete: 'CASCADE' });
+OrderItem.belongsTo(Order, { foreignKey: 'orderId', onDelete: 'CASCADE' });
+OrderItem.belongsTo(Product, { foreignKey: 'productId' });
 
 // Sync database only once
 let isSynced = false;

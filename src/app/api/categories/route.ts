@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
-import { Category, ensureDbSynced } from '@/lib/db';
+import { Category, ensureDbSynced, toSlug } from '@/lib/db';
 
 export async function GET() {
   try {
     await ensureDbSynced();
     const categories = await Category.findAll({ order: [['name', 'ASC']] });
+    for (const cat of categories) {
+      if (!cat.slug) {
+        cat.slug = toSlug(cat.name);
+        await cat.save();
+      }
+    }
     return NextResponse.json(categories);
   } catch (error: any) {
     console.error('API Error:', error);
@@ -22,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
-    const category = await Category.create({ name });
+    const category = await Category.create({ name, slug: toSlug(name) });
     return NextResponse.json(category);
   } catch (error: any) {
     console.error('API Error:', error);
