@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import DataEntryTab from '@/components/DataEntryTab';
 import CategoryTab from '@/components/CategoryTab';
-import { Database, Store, LogOut, Tag } from 'lucide-react';
+import OrdersTab from '@/components/OrdersTab';
+import { Database, Store, LogOut, Tag, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -78,6 +79,10 @@ export default function AdminPage() {
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'category' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-700'}`}>
               <Tag size={18} /> Categories
             </button>
+            <button onClick={() => setActiveTab('orders')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-700'}`}>
+              <ShoppingBag size={18} /> Orders
+            </button>
             <button onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:text-red-600 border-l border-gray-300 ml-2">
               <LogOut size={18} /> Logout
@@ -89,6 +94,7 @@ export default function AdminPage() {
       <div className="max-w-[95%] mx-auto px-4 pt-6 min-h-[90vh] flex flex-col">
         {activeTab === 'data-entry' && <DataEntryTab />}
         {activeTab === 'category' && <CategoryTab />}
+        {activeTab === 'orders' && <OrdersTab />}
       </div>
     </main>
   );

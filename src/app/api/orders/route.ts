@@ -5,7 +5,10 @@ export async function GET() {
   try {
     await ensureDbSynced();
     const orders = await Order.findAll({
-      include: [{ model: OrderItem }],
+      include: [{
+        model: OrderItem,
+        include: [{ model: Product, attributes: ['id', 'name', 'image'] }],
+      }],
       order: [['date', 'DESC']],
     });
     return NextResponse.json(orders);
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
       phone,
       address,
       total,
-      status: 'confirmed',
+      status: 'pending',
       date: new Date(),
     });
 
@@ -76,6 +79,33 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, orderId: order.id, total });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    await ensureDbSynced();
+    const body = await request.json();
+    const { id, status } = body;
+
+    if (!id || !status) {
+      return NextResponse.json({ error: 'Order ID and status are required' }, { status: 400 });
+    }
+
+    const validStatuses = ['pending', 'processing', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+
+    const order = await Order.findByPk(id);
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    await order.update({ status });
+    return NextResponse.json(order);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
