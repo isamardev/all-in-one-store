@@ -6,7 +6,7 @@ import Navbar from '@/components/store/Navbar';
 import Footer from '@/components/store/Footer';
 import ProductCard from '@/components/store/ProductCard';
 
-interface Product { id: number; name: string; salePrice: number; stock: number; image: string | null; category: string; }
+interface Product { id: number; name: string; salePrice: number; compareAtPrice?: number; stock: number; image: string | null; category: string; }
 
 export default function CategoryPage() {
   const { slug } = useParams();

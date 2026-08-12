@@ -8,6 +8,7 @@ interface Product {
   id: number;
   name: string;
   salePrice: number;
+  compareAtPrice?: number;
   stock: number;
   image: string | null;
   category: string;
@@ -15,6 +16,10 @@ interface Product {
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addToCart } = useCart();
+  const hasDiscount = (product.compareAtPrice || 0) > product.salePrice;
+  const discount = hasDiscount
+    ? Math.round(((product.compareAtPrice! - product.salePrice) / product.compareAtPrice!) * 100)
+    : 0;
 
   const handleAdd = () => {
     if (product.stock <= 0) {
@@ -41,6 +46,11 @@ export default function ProductCard({ product }: { product: Product }) {
             {product.name.charAt(0)}
           </div>
         )}
+        {hasDiscount && (
+          <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-black px-2 py-1 rounded-lg">
+            -{discount}%
+          </span>
+        )}
         {product.stock <= 0 && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">Out of Stock</span>
@@ -51,7 +61,12 @@ export default function ProductCard({ product }: { product: Product }) {
         <p className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-1">{product.category}</p>
         <h3 className="font-bold text-gray-800 mb-2 line-clamp-2">{product.name}</h3>
         <div className="flex items-center justify-between">
-          <span className="text-xl font-black text-gray-900">Rs. {product.salePrice.toFixed(0)}</span>
+          <div>
+            <span className="text-xl font-black text-gray-900">Rs. {product.salePrice.toFixed(0)}</span>
+            {hasDiscount && (
+              <span className="block text-sm text-gray-400 line-through">Rs. {product.compareAtPrice!.toFixed(0)}</span>
+            )}
+          </div>
           <button
             onClick={handleAdd}
             disabled={product.stock <= 0}

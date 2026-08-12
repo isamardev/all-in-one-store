@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         price: product.salePrice,
       });
 
-      const unitCost = parseFloat(product.code) / 3;
+      const unitCost = product.costPrice || 0;
       const qty = item.quantity;
       const totalSale = product.salePrice * qty;
       const totalCost = unitCost * qty;

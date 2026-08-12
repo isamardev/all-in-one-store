@@ -23,6 +23,11 @@ export class Product extends Model {
   declare category: string;
   declare stock: number;
   declare salePrice: number;
+  declare compareAtPrice: number;
+  declare description: string | null;
+  declare sku: string | null;
+  declare images: string | null;
+  declare status: string;
   declare image: string | null;
 }
 
@@ -56,6 +61,26 @@ Product.init(
     salePrice: {
       type: DataTypes.FLOAT,
       defaultValue: 0,
+    },
+    compareAtPrice: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    sku: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    images: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    status: {
+      type: DataTypes.STRING,
+      defaultValue: 'active',
     },
     image: {
       type: DataTypes.TEXT,

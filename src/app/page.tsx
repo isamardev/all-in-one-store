@@ -7,7 +7,7 @@ import Footer from '@/components/store/Footer';
 import ProductCard from '@/components/store/ProductCard';
 
 interface Category { id: number; name: string; slug: string; }
-interface Product { id: number; name: string; salePrice: number; stock: number; image: string | null; category: string; }
+interface Product { id: number; name: string; salePrice: number; compareAtPrice?: number; stock: number; image: string | null; category: string; }
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
